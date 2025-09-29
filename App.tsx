@@ -24,6 +24,7 @@ interface SmsSchedulerModule {
   cancelSms(id: string): void;
   canScheduleExactAlarms(): Promise<boolean>;
   openExactAlarmSettings(): void;
+  getAllSmsStatuses(): Promise<{ [id: string]: string }>; // <-- Bunu ekle
 }
 
 const TypedSmsModule: SmsSchedulerModule = SmsModule;
@@ -69,22 +70,43 @@ const App = () => {
     });
   };
 
-  const loadScheduledSms = async () => {
-    try {
-      const jsonValue = await AsyncStorage.getItem(SMS_STORAGE_KEY);
-      if (jsonValue != null) {
-        const loadedList: ScheduledSms[] = JSON.parse(jsonValue).map((item: any) => ({
-          ...item,
-          date: new Date(item.date),
-        }));
-        setScheduledSmsList(loadedList);
-      }
-    } catch (e) {
-      console.error('Failed to load scheduled SMS list.', e);
-    } finally {
-      setIsLoading(false);
+ const loadScheduledSms = async () => {
+  try {
+    const jsonValue = await AsyncStorage.getItem(SMS_STORAGE_KEY);
+    let loadedList: ScheduledSms[] = [];
+    if (jsonValue != null) {
+      loadedList = JSON.parse(jsonValue).map((item: any) => ({
+        ...item,
+        date: new Date(item.date),
+      }));
     }
-  };
+
+    // Native'den status'ları al
+    let nativeStatuses: { [id: string]: string } = {};
+    if (TypedSmsModule.getAllSmsStatuses) {
+      nativeStatuses = await TypedSmsModule.getAllSmsStatuses();
+    }
+
+    // Pending olanların status'unu native'den gelenle güncelle
+    const now = new Date().getTime();
+    loadedList = loadedList.map(sms => {
+      if (sms.status === 'pending') {
+        if (nativeStatuses[sms.id] === 'sent' || nativeStatuses[sms.id] === 'failed') {
+          return { ...sms, status: nativeStatuses[sms.id] as 'sent' | 'failed' };
+        }
+        // Zamanı geçmiş ama native'de status yoksa, istersen burada 'failed' yapabilirsin
+      }
+      return sms;
+    });
+
+    setScheduledSmsList(loadedList);
+    saveScheduledSms(loadedList);
+  } catch (e) {
+    console.error('Failed to load scheduled SMS list.', e);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const saveScheduledSms = async (list: ScheduledSms[]) => {
     try {
@@ -304,6 +326,7 @@ const App = () => {
       <Button title="Tarih ve Saat Ayarla" onPress={showDatePicker} />
       <Text style={styles.dateText}>Seçilen Tarih: {formattedDate}</Text>
 
+      
       <DateTimePickerModal
         isVisible={isDatePickerVisible}
         mode="datetime"
@@ -321,6 +344,7 @@ const App = () => {
             data={scheduledSmsList}
             renderItem={renderSmsItem}
             keyExtractor={item => item.id}
+            extraData={scheduledSmsList}
           />
         </View>
       )}

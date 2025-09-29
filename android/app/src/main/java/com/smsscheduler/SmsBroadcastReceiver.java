@@ -36,6 +36,7 @@ public class SmsBroadcastReceiver extends BroadcastReceiver {
             
             // Başarılı geri bildirimi React Native'e gönder
             sendEvent(context, id, "sent");
+            saveSmsStatus(context, id, "sent");
 
         } catch (Exception e) {
             Log.e("SmsReceiver", "Failed to send SMS", e);
@@ -43,7 +44,15 @@ public class SmsBroadcastReceiver extends BroadcastReceiver {
             
             // Hata geri bildirimini React Native'e gönder
             sendEvent(context, id, "failed");
+            saveSmsStatus(context, id, "failed");
         }
+    }
+
+    private void saveSmsStatus(Context context, String smsId, String status) {
+        context.getSharedPreferences("sms_status", Context.MODE_PRIVATE)
+            .edit()
+            .putString(smsId, status)
+            .apply();
     }
     
     private void sendEvent(Context context, String smsId, String status) {

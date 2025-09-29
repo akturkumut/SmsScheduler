@@ -10,6 +10,10 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
+import android.content.SharedPreferences;
+import java.util.Map;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.Arguments;
 
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -75,6 +79,8 @@ public class SmsModule extends ReactContextBaseJavaModule {
         Log.d("SmsModule", "Canceling SMS with ID: " + id);
         AlarmManager alarmManager = (AlarmManager) reactContext.getSystemService(Context.ALARM_SERVICE);
         Intent intent = new Intent(reactContext, SmsBroadcastReceiver.class);
+        intent.setAction("com.smsscheduler.SMS_SENT_ACTION");
+        intent.putExtra("id", id); // Sadece id yeterli, diğerleri gerekmez
         
         int flags = PendingIntent.FLAG_NO_CREATE; // Sadece varsa alır
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -112,6 +118,21 @@ public class SmsModule extends ReactContextBaseJavaModule {
                     Uri.parse("package:" + reactContext.getPackageName()));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             reactContext.startActivity(intent);
+        }
+    }
+    
+    @ReactMethod
+    public void getAllSmsStatuses(Promise promise) {
+        try {
+            SharedPreferences prefs = reactContext.getSharedPreferences("sms_status", Context.MODE_PRIVATE);
+            Map<String, ?> allEntries = prefs.getAll();
+            WritableMap result = Arguments.createMap();
+            for (Map.Entry<String, ?> entry : allEntries.entrySet()) {
+                result.putString(entry.getKey(), entry.getValue().toString());
+            }
+            promise.resolve(result);
+        } catch (Exception e) {
+            promise.reject("ERROR", e);
         }
     }
 }
